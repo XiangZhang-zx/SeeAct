@@ -261,14 +261,10 @@ class OpenAIEngine(Engine):
                 {"role": "assistant", "content": [{"type": "text", "text": f"\n\n{ouput_0}"}]},
                 {"role": "user", "content": [{"type": "text", "text": prompt2}]}, 
             ]
-        response, *_ = send_request(
-            agent_name="SeeactAgent",  # 或其他agent名称
+        response, start_times, end_times, waiting_times, turnaround_times = send_request(
+            agent_name = self.agent_name,
             query=Query(
-                messages=prompt_input,
-                max_tokens=max_new_tokens if max_new_tokens else 4096,
-                temperature=temperature if temperature else self.temperature,
-                model=model if model else self.model,
-                **kwargs
+                messages=self.messages, tools=None, message_return_type="json"
             )
         )
         return response.response_message
