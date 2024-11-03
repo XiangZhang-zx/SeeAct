@@ -14,7 +14,8 @@
 # limitations under the License.
 import os
 import time
-
+from aios.hooks.request import send_request
+from pyopenagi.utils.chat_template import Query
 import backoff
 import openai
 from openai import (
@@ -260,15 +261,17 @@ class OpenAIEngine(Engine):
                 {"role": "assistant", "content": [{"type": "text", "text": f"\n\n{ouput_0}"}]},
                 {"role": "user", "content": [{"type": "text", "text": prompt2}]}, 
             ]
-        response = litellm.completion(
-            model=model if model else self.model,
-            messages=prompt_input,
-            max_tokens=max_new_tokens if max_new_tokens else 4096,
-            temperature=temperature if temperature else self.temperature,
-            **kwargs,
+        response, *_ = send_request(
+            agent_name="SeeactAgent",  # 或其他agent名称
+            query=Query(
+                messages=prompt_input,
+                max_tokens=max_new_tokens if max_new_tokens else 4096,
+                temperature=temperature if temperature else self.temperature,
+                model=model if model else self.model,
+                **kwargs
+            )
         )
-        return [choice["message"]["content"] for choice in response.choices][0]
-
+        return response.response_message
 
 class OpenaiEngine_MindAct(Engine):
     def __init__(self, **kwargs) -> None:
