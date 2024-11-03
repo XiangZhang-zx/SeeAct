@@ -219,10 +219,11 @@ class GeminiEngine(Engine):
 class OpenAIEngine(Engine):
     def __init__(self, **kwargs) -> None:
         """
-            Init an OpenAI GPT/Codex engine
-            To find your OpenAI API key, visit https://platform.openai.com/api-keys
+        Init an OpenAI GPT/Codex engine
+        To find your OpenAI API key, visit https://platform.openai.com/api-keys
         """
         super().__init__(**kwargs)
+        self.agent_name = "SeeactAgent"  # 添加 agent_name 属性
 
     @backoff.on_exception(
         backoff.expo,
@@ -230,44 +231,51 @@ class OpenAIEngine(Engine):
     )
     def generate(self, prompt: list = None, max_new_tokens=4096, temperature=None, model=None, image_path=None,
                  ouput_0=None, turn_number=0, **kwargs):
-        self.current_key_idx = (self.current_key_idx + 1) % len(self.time_slots)
-        start_time = time.time()
-        if (
+        try:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.time_slots)
+            start_time = time.time()
+            if (
                 self.request_interval > 0
                 and start_time < self.next_avil_time[self.current_key_idx]
-        ):
-            time.sleep(self.next_avil_time[self.current_key_idx] - start_time)
-        prompt0, prompt1, prompt2 = prompt
-        # litellm.set_verbose=True
+            ):
+                time.sleep(self.next_avil_time[self.current_key_idx] - start_time)
+            
+            prompt0, prompt1, prompt2 = prompt
+            base64_image = encode_image(image_path)
+            
+            if turn_number == 0:
+                prompt_input = [
+                    {"role": "system", "content": [{"type": "text", "text": prompt0}]},
+                    {"role": "user",
+                     "content": [{"type": "text", "text": prompt1}, {"type": "image_url", "image_url": {"url":
+                                                                                                        f"data:image/jpeg;base64,{base64_image}",
+                                                                                                    "detail": "high"}}]},
+                ]
+            elif turn_number == 1:
+                prompt_input = [
+                    {"role": "system", "content": [{"type": "text", "text": prompt0}]},
+                    {"role": "user",
+                     "content": [{"type": "text", "text": prompt1}, {"type": "image_url", "image_url": {"url":
+                                                                                                        f"data:image/jpeg;base64,{base64_image}",
+                                                                                                    "detail": "high"}}]},
+                    {"role": "assistant", "content": [{"type": "text", "text": f"\n\n{ouput_0}"}]},
+                    {"role": "user", "content": [{"type": "text", "text": prompt2}]},
+                ]
 
-        base64_image = encode_image(image_path)
-        if turn_number == 0:
-            # Assume one turn dialogue
-            prompt_input = [
-                {"role": "system", "content": [{"type": "text", "text": prompt0}]},
-                {"role": "user",
-                 "content": [{"type": "text", "text": prompt1}, {"type": "image_url", "image_url": {"url":
-                                                                                                        f"data:image/jpeg;base64,{base64_image}",
-                                                                                                    "detail": "high"},
-                                                                 }]},
-            ]
-        elif turn_number == 1:
-            prompt_input = [
-                {"role": "system", "content": [{"type": "text", "text": prompt0}]},
-                {"role": "user",
-                 "content": [{"type": "text", "text": prompt1}, {"type": "image_url", "image_url": {"url":
-                                                                                                        f"data:image/jpeg;base64,{base64_image}",
-                                                                                                    "detail": "high"}, }]},
-                {"role": "assistant", "content": [{"type": "text", "text": f"\n\n{ouput_0}"}]},
-                {"role": "user", "content": [{"type": "text", "text": prompt2}]}, 
-            ]
-        response, start_times, end_times, waiting_times, turnaround_times = send_request(
-            agent_name = self.agent_name,
-            query=Query(
-                messages=self.messages, tools=None, message_return_type="json"
+            # 使用正确的消息格式
+            response, start_times, end_times, waiting_times, turnaround_times = send_request(
+                agent_name=self.agent_name,
+                query=Query(
+                    messages=prompt_input,  # 使用 prompt_input 而不是 self.messages
+                    tools=None,
+                    message_return_type="json"
+                )
             )
-        )
-        return response.response_message
+            return response.response_message
+
+        except Exception as e:
+            print(f"Error in generate: {str(e)}")
+            raise
 
 class OpenaiEngine_MindAct(Engine):
     def __init__(self, **kwargs) -> None:
